@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Sistema de Agendamento de Turmas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Caminho atualizado -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-50 p-6">
+  <div class="max-w-full mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+      <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">
+        Sistema de Agendamento de Turmas
+      </h1>
+
+      <!-- Botão Consolidar -->
+      <div class="mb-4 flex justify-end">
+        <button id="btn-consolidar" 
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">
+          Consolidar horário
+        </button>
+      </div>
+
+      <div class="grid-scroller">
+        <!-- Legenda -->
+        <div class="flex items-center gap-6 mb-4 justify-start flex-wrap">
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 bg-white border border-gray-300 rounded"></div>
+            <span class="text-sm text-gray-600">Disponível</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-4 h-4 bg-red-200 rounded"></div>
+            <span class="text-sm text-gray-600">Ocupado</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-3 bg-green-500 rounded text-xs"></div>
+            <span class="text-sm text-gray-600">Manhã (07:00-09:30)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-3 bg-yellow-500 rounded"></div>
+            <span class="text-sm text-gray-600">Tarde (13:00-15:30)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-3 bg-purple-500 rounded"></div>
+            <span class="text-sm text-gray-600">Noite (19:00-21:30)</span>
+          </div>
+        </div>
+
+        <!-- Cabeçalho dos dias -->
+        <div class="turma-row mb-4">
+          <div class="bg-gray-800 text-white p-3 font-bold text-center rounded-lg">TURMAS</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">SEGUNDA-FEIRA</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">TERÇA-FEIRA</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">QUARTA-FEIRA</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">QUINTA-FEIRA</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">SEXTA-FEIRA</div>
+          <div class="bg-blue-600 text-white p-3 font-bold text-center rounded-lg header-day">SÁBADO</div>
+        </div>
+
+        <!-- Cabeçalho dos períodos -->
+        <div id="periods-header" class="turma-row mb-2">
+          <div class="bg-gray-200 p-2 text-center text-sm font-medium">PERÍODOS</div>
+        </div>
+
+        <!-- Grade -->
+        <div id="schedule-grid"></div>
+      </div>
+
+      <!-- Painel inferior (não alocadas) -->
+      <div class="mt-8 bg-gray-100 rounded-lg p-4 border border-gray-200">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold">Aulas não alocadas</h2>
+          <span id="unalloc-count" class="text-sm text-gray-600"></span>
+        </div>
+        <div id="unallocated-list" class="flex flex-wrap gap-2"></div>
+        <div class="text-xs text-gray-500 mt-3 leading-relaxed">
+          Selecione um cartão e depois clique no <i>início</i> do bloco na grade para alocar (respeita a duração).<br/>
+          Clique em uma célula ocupada para <b>remover ou substituir</b> a aula.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
