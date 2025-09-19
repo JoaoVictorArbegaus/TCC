@@ -1,54 +1,8 @@
-/* === Dados base (placeholders) === */
-const meta = {
-  days: ['SEG','TER','QUA','QUI','SEX','SAB'],
-  periods: [
-    { code:'M1', start:'07:00', band:'M' }, { code:'M2', start:'07:50', band:'M' },
-    { code:'M3', start:'08:40', band:'M' }, { code:'M4', start:'09:30', band:'M' },
-    { code:'T1', start:'13:00', band:'T' }, { code:'T2', start:'13:50', band:'T' },
-    { code:'T3', start:'14:40', band:'T' }, { code:'T4', start:'15:30', band:'T' },
-    { code:'N1', start:'19:00', band:'N' }, { code:'N2', start:'19:50', band:'N' },
-    { code:'N3', start:'20:40', band:'N' }, { code:'N4', start:'21:30', band:'N' }
-  ]
-};
+/* === Dados vindos do data.js === */
+const { meta, classes, teachers, subjects, initialAllocations, initialUnallocated } = window.EDITOR_DATA;
 
-const classes = [
-  { id:'CC1', name:'CC1' }, { id:'CC2', name:'CC2' },
-  { id:'CC3', name:'CC3' }, { id:'CC4', name:'CC4' },
-  { id:'CC5', name:'CC5' }, { id:'CC6', name:'CC6' },
-  { id:'CC7', name:'CC7' }, { id:'CC8', name:'CC8' },
-];
-
-const teachers = [
-  { id:'t1', name:'Prof. Silva' }, { id:'t2', name:'Prof. Santos' },
-  { id:'t3', name:'Prof. Costa' }, { id:'t4', name:'Prof. Lima'  },
-  { id:'t5', name:'Prof. Oliveira' }, { id:'t6', name:'Prof. Ferreira' },
-  { id:'t7', name:'Prof. Almeida' }, { id:'t8', name:'Prof. Rocha' }
-];
-
-const subjects = [
-  { id:'mat', name:'Matemática', abbr:'MAT' },
-  { id:'por', name:'Português',  abbr:'POR' },
-  { id:'his', name:'História',   abbr:'HIS' },
-  { id:'geo', name:'Geografia',  abbr:'GEO' },
-  { id:'cie', name:'Ciências',   abbr:'CIE' },
-  { id:'ing', name:'Inglês',     abbr:'ING' },
-  { id:'edf', name:'Ed. Física', abbr:'EDF' },
-  { id:'art', name:'Artes',      abbr:'ART' },
-];
-
-
-// Alocações iniciais simples (índices lineares: dia*12 + período)
-const initialAllocations = { 0:[0,12,24,36], 1:[1,13,25,37], 2:[16,28,40,52], 3:[8,20,32,44] };
-
-// Cards de aulas não alocadas (com durações variadas)
-let unallocatedLessons = [
-  { id:'u1', classId:'CC1', subjectId:'mat', teacherIds:['t1'], duration:2 },
-  { id:'u2', classId:'CC2', subjectId:'por', teacherIds:['t2'], duration:1 },
-  { id:'u3', classId:'CC3', subjectId:'his', teacherIds:['t3'], duration:3 },
-  { id:'u4', classId:'CC4', subjectId:'geo', teacherIds:['t4'], duration:2 },
-  { id:'u5', classId:'CC5', subjectId:'cie', teacherIds:['t5'], duration:1 },
-  { id:'u6', classId:'CC6', subjectId:'ing', teacherIds:['t6'], duration:2 },
-];
+/* === Estado de cards não alocados (clonamos para não mutar o data.js) === */
+let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated));
 
 /* === Utilitários === */
 const P = meta.periods.length;
@@ -56,7 +10,9 @@ const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
 const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
 const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
 
-function bandColor(b){ return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500'); }
+function bandColor(b){
+  return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500');
+}
 function cellTitle(lesson){
   const cls = classById[lesson.classId]?.name ?? lesson.classId;
   const subj = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
@@ -70,7 +26,6 @@ function lessonMarkup(lesson){
             <div class="font-bold text-sm">${abbr}</div>
           </div>`;
 }
-
 
 /* === Estado === */
 const mapCells = {};                 // mapCells[turmaId][day][period] = elemento
@@ -132,7 +87,6 @@ function renderUnallocated(){
 }
 
 /* --------- Helpers de bloco --------- */
-// checa se cabe (sem ignorar ninguém)
 function canPlaceBlock(turmaId, day, startPeriod, duration){
   if (startPeriod + duration > P) return false;
   for (let k=0;k<duration;k++){
@@ -142,7 +96,6 @@ function canPlaceBlock(turmaId, day, startPeriod, duration){
   return true;
 }
 
-// checa se cabe ignorando um grupo específico (para validar overwrite SEM remover ainda)
 function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgnore){
   if (startPeriod + duration > P) return false;
   for (let k=0;k<duration;k++){
@@ -197,7 +150,6 @@ function criarGrade(){
   const grid = document.getElementById('schedule-grid');
   grid.innerHTML = '';
 
-  // prepara mapa
   classes.forEach(t=>{
     mapCells[t.id] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null));
   });
@@ -225,7 +177,6 @@ function criarGrade(){
 
         mapCells[turma.id][dia][periodo] = cell;
 
-        // pré-alocações iniciais (como blocos de 1 período)
         if (initialAllocations?.[turmaIndex]?.includes(linearIndex)){
           const lesson = {
             id: `init-${turma.id}-${linearIndex}`,
@@ -239,16 +190,13 @@ function criarGrade(){
           cell.title = `${turma.name} - Clique para alocar`;
         }
 
-        // Clique com suporte a overwrite
         cell.addEventListener('click', ()=>{
           const turmaId = cell.dataset.turmaId;
           const day = Number(cell.dataset.dia);
           const startP = Number(cell.dataset.periodo);
 
-          // Slot OCUPADO
           if (cell.classList.contains('occupied') && cell.dataset.group){
             if (selectedLessonId){
-              // OVERWRITE: validar, remover antigo e alocar novo
               const idxSel = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
               if (idxSel === -1) return;
               const sel = unallocatedLessons[idxSel];
@@ -259,23 +207,17 @@ function criarGrade(){
                 return;
               }
 
-              // dados do bloco atual
               const { cells: oldCells, lesson: oldLesson, group: oldGroup } = getGroupCells(cell);
 
-              // 1) valida se o novo CABE ignorando o grupo antigo
               if (!canPlaceBlockOverwrite(turmaId, day, startP, sel.duration, oldGroup)){
                 cell.classList.add('ring-2','ring-red-400');
                 setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'),400);
                 return;
               }
 
-              // 2) remove o antigo
               removeGroupCells(oldCells);
-
-              // 3) aloca o novo
               placeBlock(turmaId, day, startP, sel);
 
-              // 4) manda o antigo para os cards e remove o selecionado
               unallocatedLessons.push(oldLesson);
               unallocatedLessons.splice(idxSel,1);
               selectedLessonId = null;
@@ -283,7 +225,6 @@ function criarGrade(){
               return;
             }
 
-            // Sem card selecionado → remover bloco e mandar para os cards
             const { cells: grpCells, lesson } = getGroupCells(cell);
             removeGroupCells(grpCells);
             unallocatedLessons.push(lesson);
@@ -291,7 +232,6 @@ function criarGrade(){
             return;
           }
 
-          // Slot VAZIO → tenta alocar card selecionado
           if (!selectedLessonId){
             cell.classList.add('ring-2','ring-blue-400');
             setTimeout(()=>cell.classList.remove('ring-2','ring-blue-400'),300);
@@ -314,14 +254,12 @@ function criarGrade(){
         });
 
         dayColumn.appendChild(cell);
-      } // <<< fecha o for (periodo)
+      }
       turmaRow.appendChild(dayColumn);
-    } // <<< fecha o for (dia)
-
+    }
     grid.appendChild(turmaRow);
-  }); // <<< fecha o classes.forEach(...)
-} // <<< fecha function criarGrade
-
+  });
+}
 
 /* --------- Boot --------- */
 function init(){
@@ -333,9 +271,7 @@ init();
 
 /* --------- Consolidação --------- */
 function consolidar(){
-  // Monta estrutura de JSON consolidado
   const allocations = [];
-
   classes.forEach(t=>{
     for (let d=0; d<meta.days.length; d++){
       for (let p=0; p<P; p++){
@@ -355,22 +291,10 @@ function consolidar(){
     }
   });
 
-  const consolidated = {
-    meta,
-    classes,
-    teachers,
-    subjects,
-    allocations
-  };
-
-  // Salva no localStorage (por enquanto, depois podemos trocar para backend/API)
+  const consolidated = { meta, classes, teachers, subjects, allocations };
   localStorage.setItem('consolidatedSchedule', JSON.stringify(consolidated));
-
-  // Redireciona para página de visualização
   window.location.href = 'vizualizar.html';
 }
 
-// Liga o botão ao consolidar
-document.getElementById('btn-consolidar')
-        .addEventListener('click', consolidar);
-
+const btnCons = document.getElementById('btn-consolidar');
+if (btnCons) btnCons.addEventListener('click', consolidar);
