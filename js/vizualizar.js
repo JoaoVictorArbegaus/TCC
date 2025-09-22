@@ -30,7 +30,6 @@ function cellTitle(lesson, classById, subjectById, teacherById){
 
 /* ---------- Headers dinâmicos ---------- */
 function renderHeadersFull(meta){
-  // Linha: TURMAS | dias da semana
   const days = document.getElementById('days-header');
   days.innerHTML = '';
   const title = document.createElement('div');
@@ -46,7 +45,6 @@ function renderHeadersFull(meta){
     days.appendChild(d);
   }
 
-  // Cabeçalho dos períodos (12 por dia)
   const header = document.getElementById('periods-header');
   while (header.children.length > 1) header.removeChild(header.lastChild);
 
@@ -63,13 +61,10 @@ function renderHeadersFull(meta){
   }
 }
 
-// Reaproveitamos o mesmo header para "modo single" (turma ou professor)
-function renderHeadersSingle(meta, subtitleText){
-  // Subtítulo
+function renderHeadersSingle(meta, subtitulo){
   const sub = document.getElementById('viz-subtitle');
-  if (sub) sub.textContent = subtitleText || '';
+  if (sub) sub.textContent = subtitulo || '';
 
-  // Topo: apenas a FAIXA AZUL "PERÍODOS" ocupando a COLUNA 2 (CSS faz grid-column: 2/3)
   const days = document.getElementById('days-header');
   days.innerHTML = '';
   const faixa = document.createElement('div');
@@ -77,7 +72,6 @@ function renderHeadersSingle(meta, subtitleText){
   faixa.textContent = 'PERÍODOS';
   days.appendChild(faixa);
 
-  // Linha abaixo: "DIAS" (coluna 1) | rótulos dos 12 períodos (coluna 2)
   const header = document.getElementById('periods-header');
   header.innerHTML = '';
 
@@ -97,7 +91,49 @@ function renderHeadersSingle(meta, subtitleText){
   header.appendChild(col);
 }
 
-/* ---------- Grid: todas as turmas ---------- */
+/* ---------- Helpers de render: grid + bloco fundido ---------- */
+let vizMap = {}; // vizMap[classId][day][period] = cell
+function ensureVizMap(classes, meta){
+  vizMap = {};
+  classes.forEach(c=>{
+    vizMap[c.id] = Array.from({length: meta.days.length}, ()=>Array(meta.periods.length).fill(null));
+  });
+}
+
+function baseCell(turmaId, dia, periodo){
+  const cell = document.createElement('div');
+  cell.className = 'time-slot flex items-center justify-center text-xs';
+  cell.dataset.turmaId = turmaId;
+  cell.dataset.dia = String(dia);
+  cell.dataset.periodo = String(periodo);
+  // âncora por coluna para o grid não quebrar quando dermos span
+  cell.style.gridColumnStart = String(periodo + 1);
+  cell.style.gridColumnEnd   = 'span 1';
+  return cell;
+}
+
+/** Aplica o “bloco único” na visualização (sem eventos de clique). */
+function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teacherById){
+  for (let k=0; k<lesson.duration; k++){
+    const cell = vizMap[turmaId][day][start + k];
+    if (k === 0){
+      cell.classList.add('occupied', 'block-head');
+      cell.style.gridColumnEnd = `span ${lesson.duration}`;
+      cell.innerHTML = lessonMarkup(lesson, subjectById);
+      cell.title = cellTitle(lesson, classById, subjectById, teacherById);
+      cell.style.display = '';
+    } else {
+      cell.classList.add('occupied', 'block-tail');
+      cell.style.display = 'none';
+      cell.style.gridColumnEnd = 'span 1';
+      cell.innerHTML = '';
+      cell.title = '';
+    }
+  }
+}
+
+/* ---------- Grade ---------- */
+// FULL: linhas = turmas; colunas = dias (cada dia 12 períodos)
 function renderGridFull(data){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
@@ -108,8 +144,7 @@ function renderGridFull(data){
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
   const P = meta.periods.length;
 
-  const allocIndex = {};
-  allocations.forEach(a => { allocIndex[`${a.classId}-${a.day}-${a.start}`] = a; });
+  ensureVizMap(classes, meta);
 
   classes.forEach(turma=>{
     const turmaRow = document.createElement('div');
@@ -124,25 +159,22 @@ function renderGridFull(data){
       const dayColumn = document.createElement('div');
       dayColumn.className = 'day-column';
       for (let p=0; p<P; p++){
-        const cell = document.createElement('div');
-        cell.className = 'time-slot flex items-center justify-center text-xs';
-
-        const key = `${turma.id}-${dia}-${p}`;
-        if (allocIndex[key]){
-          const lesson = allocIndex[key];
-          cell.classList.add('occupied');
-          cell.innerHTML = lessonMarkup(lesson, subjectById);
-          cell.title = cellTitle(lesson, classById, subjectById, teacherById);
-        }
+        const cell = baseCell(turma.id, dia, p);
+        vizMap[turma.id][dia][p] = cell;
         dayColumn.appendChild(cell);
       }
       turmaRow.appendChild(dayColumn);
     }
     grid.appendChild(turmaRow);
   });
+
+  // pintar blocos (cada allocation já tem duration)
+  allocations.forEach(a=>{
+    placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById);
+  });
 }
 
-/* ---------- Grid: turma única ---------- */
+// TURMA ÚNICA: linhas = dias; colunas = 12 períodos
 function renderGridSingleClass(data, classId){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
@@ -152,11 +184,7 @@ function renderGridSingleClass(data, classId){
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
   const P = meta.periods.length;
-
-  const allocIndex = {};
-  allocations
-    .filter(a => a.classId === classId)
-    .forEach(a => { allocIndex[`${a.day}-${a.start}`] = a; });
+  ensureVizMap(classes, meta); // ainda usamos para reaproveitar placeBlockViz
 
   const dayNamesFull = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -164,37 +192,30 @@ function renderGridSingleClass(data, classId){
     const row = document.createElement('div');
     row.className = 'turma-row';
 
-    // Coluna esquerda: nome do dia
     const dayName = document.createElement('div');
     dayName.className = 'bg-gray-100 p-3 font-bold text-lg border-2 border-gray-300 flex items-center justify-center rounded-lg';
     dayName.textContent = dayNamesFull[dia];
     row.appendChild(dayName);
 
-    // Coluna direita: 12 períodos
     const periodsCol = document.createElement('div');
     periodsCol.className = 'day-column';
 
     for (let p=0; p<P; p++){
-      const cell = document.createElement('div');
-      cell.className = 'time-slot flex items-center justify-center text-xs';
-
-      const key = `${dia}-${p}`;
-      if (allocIndex[key]){
-        const lesson = allocIndex[key];
-        cell.classList.add('occupied');
-        cell.innerHTML = lessonMarkup(lesson, subjectById);
-        cell.title = cellTitle(lesson, classById, subjectById, teacherById);
-      }
-
+      const cell = baseCell(classId, dia, p);
+      vizMap[classId][dia][p] = cell;
       periodsCol.appendChild(cell);
     }
 
     row.appendChild(periodsCol);
     grid.appendChild(row);
   }
+
+  allocations
+    .filter(a => a.classId === classId)
+    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById));
 }
 
-/* ---------- Grid: professor único ---------- */
+// PROFESSOR: linhas = dias; colunas = 12 períodos (só marca onde ele dá aula)
 function renderGridSingleTeacher(data, teacherId){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
@@ -204,12 +225,7 @@ function renderGridSingleTeacher(data, teacherId){
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
   const P = meta.periods.length;
-
-  // indexa por (dia, início) todas as aulas onde teacherId participa
-  const allocIndex = {};
-  allocations
-    .filter(a => Array.isArray(a.teacherIds) && a.teacherIds.includes(teacherId))
-    .forEach(a => { allocIndex[`${a.day}-${a.start}`] = a; });
+  ensureVizMap(classes, meta); // apenas para reusar placeBlockViz com a classId do allocation
 
   const dayNamesFull = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -217,139 +233,86 @@ function renderGridSingleTeacher(data, teacherId){
     const row = document.createElement('div');
     row.className = 'turma-row';
 
-    // Coluna esquerda: nome do dia
     const dayName = document.createElement('div');
     dayName.className = 'bg-gray-100 p-3 font-bold text-lg border-2 border-gray-300 flex items-center justify-center rounded-lg';
     dayName.textContent = dayNamesFull[dia];
     row.appendChild(dayName);
 
-    // Coluna direita: 12 períodos
     const periodsCol = document.createElement('div');
     periodsCol.className = 'day-column';
 
     for (let p=0; p<P; p++){
-      const cell = document.createElement('div');
-      cell.className = 'time-slot flex items-center justify-center text-xs';
-
-      const key = `${dia}-${p}`;
-      if (allocIndex[key]){
-        const lesson = allocIndex[key];
-        cell.classList.add('occupied');
-
-        // Mostra a sigla da matéria; se quiser, dá pra incluir a turma menor abaixo:
-        cell.innerHTML = lessonMarkup(lesson, subjectById);
-        cell.title = cellTitle(lesson, classById, subjectById, teacherById);
-      }
-
+      // usamos a primeira turma apenas para ancoragem visual do grid;
+      // o bloco real será pintado pela classId do allocation
+      const fakeClass = classes[0]?.id || 'FAKE';
+      if (!vizMap[fakeClass]) vizMap[fakeClass] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null));
+      const cell = baseCell(fakeClass, dia, p);
+      vizMap[fakeClass][dia][p] = cell;
       periodsCol.appendChild(cell);
     }
 
     row.appendChild(periodsCol);
     grid.appendChild(row);
   }
+
+  allocations
+    .filter(a => (a.teacherIds || []).includes(teacherId))
+    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById));
 }
 
 /* ---------- Filtros ---------- */
-function populateClassFilter(classes){
-  const sel = document.getElementById('f-class');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Todas</option>' +
-    classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+function populateFilters(data){
+  const selC = document.getElementById('f-class');
+  const selT = document.getElementById('f-teacher');
+  if (selC) selC.innerHTML = '<option value="">Todas</option>' +
+    data.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  if (selT) selT.innerHTML = '<option value="">Todos</option>' +
+    data.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 }
 
-function populateTeacherFilter(teachers){
-  const sel = document.getElementById('f-teacher');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Todos</option>' +
-    teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-}
+function applyFilters(data){
+  const selC = document.getElementById('f-class');
+  const selT = document.getElementById('f-teacher');
+  const classVal   = selC?.value || '';
+  const teacherVal = selT?.value || '';
+  const subtitleEl = document.getElementById('viz-subtitle');
 
-function wireFilters(data){
-  const selClass   = document.getElementById('f-class');
-  const selTeacher = document.getElementById('f-teacher');
-
-  let isInternal = false; // evita reentrância ao sincronizar selects
-
-  function renderState(effectiveClassId, effectiveTeacherId){
-    if (effectiveTeacherId){
-      document.body.classList.add('single-view');
-      const prof = data.teachers.find(t=>t.id===effectiveTeacherId)?.name || effectiveTeacherId;
-      renderHeadersSingle(data.meta, `Professor: ${prof}`);
-      renderGridSingleTeacher(data, effectiveTeacherId);
-      return;
-    }
-    if (effectiveClassId){
-      document.body.classList.add('single-view');
-      const turma = data.classes.find(c=>c.id===effectiveClassId)?.name || effectiveClassId;
-      renderHeadersSingle(data.meta, `Turma: ${turma}`);
-      renderGridSingleClass(data, effectiveClassId);
-      return;
-    }
+  // não permitir ambos ao mesmo tempo; prioridade para turma se ambos setados
+  if (classVal){
+    document.body.classList.add('single-view');
+    const turmaName = data.classes.find(c => c.id === classVal)?.name || '';
+    if (subtitleEl) subtitleEl.textContent = `Turma: ${turmaName}`;
+    renderHeadersSingle(data.meta, `Turma: ${turmaName}`);
+    renderGridSingleClass(data, classVal);
+  } else if (teacherVal){
+    document.body.classList.add('single-view');
+    const teacherName = data.teachers.find(t => t.id === teacherVal)?.name || '';
+    if (subtitleEl) subtitleEl.textContent = `Professor: ${teacherName}`;
+    renderHeadersSingle(data.meta, `Professor: ${teacherName}`);
+    renderGridSingleTeacher(data, teacherVal);
+  } else {
     document.body.classList.remove('single-view');
-    const sub = document.getElementById('viz-subtitle');
-    if (sub) sub.textContent = '';
+    if (subtitleEl) subtitleEl.textContent = '';
     renderHeadersFull(data.meta);
     renderGridFull(data);
   }
-
-  function apply(source){
-    if (isInternal) return;
-
-    const classId   = selClass?.value   || '';
-    const teacherId = selTeacher?.value || '';
-
-    // prioridade pelo seletor que disparou
-    let effectiveClassId   = '';
-    let effectiveTeacherId = '';
-    if (source === 'teacher' && teacherId){
-      effectiveTeacherId = teacherId;
-    } else if (source === 'class' && classId){
-      effectiveClassId = classId;
-    } else {
-      // reset ou inicial
-      if (teacherId) effectiveTeacherId = teacherId;
-      else if (classId) effectiveClassId = classId;
-    }
-
-    renderState(effectiveClassId, effectiveTeacherId);
-
-    // sincroniza selects sem “piscar”
-    isInternal = true;
-    if (effectiveTeacherId){
-      if (selClass) selClass.value = '';
-    } else if (effectiveClassId){
-      if (selTeacher) selTeacher.value = '';
-    } else {
-      if (selClass)   selClass.value   = '';
-      if (selTeacher) selTeacher.value = '';
-    }
-    isInternal = false;
-  }
-
-  if (selClass)   selClass.addEventListener('change', ()=>apply('class'));
-  if (selTeacher) selTeacher.addEventListener('change', ()=>apply('teacher'));
-
-  // >>> lida com ambos os botões "Mostrar tudo"
-  const resetButtons = document.querySelectorAll('.js-reset-all, #f-reset, #f-reset2');
-  resetButtons.forEach(btn => {
-    if (!btn.getAttribute('type')) btn.setAttribute('type', 'button');
-    btn.addEventListener('click', () => apply('reset'));
-  });
-
-  // estado inicial
-  apply('init');
 }
 
+function wireFilters(data){
+  const selC = document.getElementById('f-class');
+  const selT = document.getElementById('f-teacher');
 
+  if (selC) selC.addEventListener('change', ()=> applyFilters(data));
+  if (selT) selT.addEventListener('change', ()=> applyFilters(data));
+
+  applyFilters(data); // estado inicial
+}
 
 /* ---------- Boot ---------- */
 function initViz(){
   const data = loadConsolidated();
   if (!data) return;
-
-  populateClassFilter(data.classes);
-  populateTeacherFilter(data.teachers);
-  wireFilters(data); // já renderiza conforme o estado dos selects
+  populateFilters(data);
+  wireFilters(data);
 }
-
 initViz();
