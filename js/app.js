@@ -2,7 +2,7 @@
 const { meta, classes, teachers, subjects, initialAllocations, initialUnallocated } = window.EDITOR_DATA;
 
 /* === Estado de cards não alocados (clonamos para não mutar o data.js) === */
-let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated));
+let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated || [])); 
 
 /* === Utilitários === */
 const P = meta.periods.length;
@@ -10,9 +10,7 @@ const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
 const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
 const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
 
-function bandColor(b){
-  return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500');
-}
+function bandColor(b){ return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500'); }
 function cellTitle(lesson){
   const cls = classById[lesson.classId]?.name ?? lesson.classId;
   const subj = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
@@ -28,8 +26,8 @@ function lessonMarkup(lesson){
 }
 
 /* === Estado === */
-const mapCells = {};                 // mapCells[turmaId][day][period] = elemento
-let selectedLessonId = null;         // id do card selecionado
+const mapCells = {};                 
+let selectedLessonId = null;         
 let gidCounter = 1;
 const newGroupId = () => `g${gidCounter++}`;
 
@@ -108,15 +106,29 @@ function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgno
   return true;
 }
 
+/* === NOVO placeBlock com fusão de células === */
 function placeBlock(turmaId, day, startPeriod, lesson){
   const group = newGroupId();
-  for (let k=0;k<lesson.duration;k++){
-    const cell = mapCells[turmaId][day][startPeriod+k];
+
+  for (let k = 0; k < lesson.duration; k++){
+    const cell = mapCells[turmaId][day][startPeriod + k];
     cell.classList.add('occupied');
-    cell.innerHTML = lessonMarkup(lesson);
-    cell.title = cellTitle(lesson);
-    cell.dataset.group = group;
+    cell.dataset.group  = group;
     cell.dataset.lesson = JSON.stringify(lesson);
+
+    if (k === 0) {
+      cell.classList.add('block-head');
+      cell.style.gridColumnEnd = `span ${lesson.duration}`;
+      cell.innerHTML = lessonMarkup(lesson);
+      cell.title = cellTitle(lesson);
+      cell.style.display = '';
+    } else {
+      cell.classList.add('block-tail');
+      cell.innerHTML = '';
+      cell.title = '';
+      cell.style.display = 'none';
+      cell.style.gridColumnEnd = 'span 1';
+    }
   }
   return group;
 }
@@ -135,9 +147,12 @@ function getGroupCells(cell){
   return { turmaId, day, startPeriod, cells, lesson, group };
 }
 
+/* === NOVO removeGroupCells === */
 function removeGroupCells(cells){
   cells.forEach(c=>{
-    c.classList.remove('occupied');
+    c.classList.remove('occupied','block-head','block-tail');
+    c.style.gridColumnEnd = 'span 1';
+    c.style.display = '';
     c.innerHTML = '';
     c.title = `${classById[c.dataset.turmaId]?.name ?? c.dataset.turmaId} - Clique para alocar`;
     delete c.dataset.group;
@@ -150,9 +165,7 @@ function criarGrade(){
   const grid = document.getElementById('schedule-grid');
   grid.innerHTML = '';
 
-  classes.forEach(t=>{
-    mapCells[t.id] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null));
-  });
+  classes.forEach(t=>{ mapCells[t.id] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null)); });
 
   classes.forEach((turma, turmaIndex)=>{
     const turmaRow = document.createElement('div');
@@ -168,21 +181,24 @@ function criarGrade(){
       dayColumn.className = 'day-column';
 
       for (let periodo=0; periodo<P; periodo++){
-        const linearIndex = dia * P + periodo;
         const cell = document.createElement('div');
         cell.className = 'time-slot flex items-center justify-center text-xs';
         cell.dataset.turmaId = turma.id;
         cell.dataset.dia = String(dia);
         cell.dataset.periodo = String(periodo);
 
+        /* ancorar cada período na sua coluna */
+        cell.style.gridColumnStart = String(periodo+1);
+        cell.style.gridColumnEnd = 'span 1';
+
         mapCells[turma.id][dia][periodo] = cell;
 
-        if (initialAllocations?.[turmaIndex]?.includes(linearIndex)){
+        if (initialAllocations?.[turmaIndex]?.includes(dia*P + periodo)){
           const lesson = {
-            id: `init-${turma.id}-${linearIndex}`,
+            id: `init-${turma.id}-${dia}-${periodo}`,
             classId: turma.id,
-            subjectId: subjects[turmaIndex % subjects.length].id,
-            teacherIds: [teachers[turmaIndex % teachers.length].id],
+            subjectId: subjects[(turmaIndex + periodo) % subjects.length].id,
+            teacherIds: [teachers[(dia+periodo) % teachers.length].id],
             duration: 1
           };
           placeBlock(turma.id, dia, periodo, lesson);
@@ -190,6 +206,7 @@ function criarGrade(){
           cell.title = `${turma.name} - Clique para alocar`;
         }
 
+        /* Clique */
         cell.addEventListener('click', ()=>{
           const turmaId = cell.dataset.turmaId;
           const day = Number(cell.dataset.dia);
@@ -200,31 +217,19 @@ function criarGrade(){
               const idxSel = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
               if (idxSel === -1) return;
               const sel = unallocatedLessons[idxSel];
-
-              if (sel.classId !== turmaId){
-                cell.classList.add('ring-2','ring-red-400');
-                setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'),400);
-                return;
-              }
+              if (sel.classId !== turmaId) return;
 
               const { cells: oldCells, lesson: oldLesson, group: oldGroup } = getGroupCells(cell);
-
-              if (!canPlaceBlockOverwrite(turmaId, day, startP, sel.duration, oldGroup)){
-                cell.classList.add('ring-2','ring-red-400');
-                setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'),400);
-                return;
-              }
+              if (!canPlaceBlockOverwrite(turmaId, day, startP, sel.duration, oldGroup)) return;
 
               removeGroupCells(oldCells);
               placeBlock(turmaId, day, startP, sel);
-
               unallocatedLessons.push(oldLesson);
               unallocatedLessons.splice(idxSel,1);
               selectedLessonId = null;
               renderUnallocated();
               return;
             }
-
             const { cells: grpCells, lesson } = getGroupCells(cell);
             removeGroupCells(grpCells);
             unallocatedLessons.push(lesson);
@@ -232,20 +237,11 @@ function criarGrade(){
             return;
           }
 
-          if (!selectedLessonId){
-            cell.classList.add('ring-2','ring-blue-400');
-            setTimeout(()=>cell.classList.remove('ring-2','ring-blue-400'),300);
-            return;
-          }
+          if (!selectedLessonId) return;
           const idx = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
           if (idx===-1) return;
           const lesson = unallocatedLessons[idx];
-
-          if (lesson.classId !== turmaId || !canPlaceBlock(turmaId, day, startP, lesson.duration)){
-            cell.classList.add('ring-2','ring-red-400');
-            setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'),400);
-            return;
-          }
+          if (lesson.classId !== turmaId || !canPlaceBlock(turmaId, day, startP, lesson.duration)) return;
 
           placeBlock(turmaId, day, startP, lesson);
           unallocatedLessons.splice(idx,1);
@@ -278,14 +274,16 @@ function consolidar(){
         const cell = mapCells[t.id][d][p];
         if (cell && cell.classList.contains('occupied') && cell.dataset.lesson){
           const lesson = JSON.parse(cell.dataset.lesson);
-          allocations.push({
-            classId: t.id,
-            day: d,
-            start: p,
-            duration: lesson.duration,
-            subjectId: lesson.subjectId,
-            teacherIds: lesson.teacherIds || []
-          });
+          if (cell.classList.contains('block-head')){
+            allocations.push({
+              classId: t.id,
+              day: d,
+              start: p,
+              duration: lesson.duration,
+              subjectId: lesson.subjectId,
+              teacherIds: lesson.teacherIds || []
+            });
+          }
         }
       }
     }
@@ -296,5 +294,4 @@ function consolidar(){
   window.location.href = 'vizualizar.html';
 }
 
-const btnCons = document.getElementById('btn-consolidar');
-if (btnCons) btnCons.addEventListener('click', consolidar);
+document.getElementById('btn-consolidar').addEventListener('click', consolidar);

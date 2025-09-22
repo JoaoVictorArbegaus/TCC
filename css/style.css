@@ -109,3 +109,6 @@
   grid-template-columns: 140px calc(12 * var(--period-w) + 11 * var(--slot-gap));
 }
 .single-view .grid-scroller { padding-inline: 8px; }
+
+.block-head { border-radius: 6px; }
+.block-tail { /* escondemos via display:none no JS */ }

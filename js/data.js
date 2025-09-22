@@ -12,10 +12,10 @@ window.EDITOR_DATA = (function(){
     days: ['SEG','TER','QUA','QUI','SEX','SAB'],
     periods: [
       { code:'M1', start:'08:00', band:'M' }, { code:'M2', start:'08:55', band:'M' },
-      { code:'M3', start:'10:10', band:'M' }, { code:'M4', start:'11:00', band:'M' },
-      { code:'T1', start:'13:00', band:'T' }, { code:'T2', start:'13:50', band:'T' },
-      { code:'T3', start:'14:40', band:'T' }, { code:'T4', start:'15:30', band:'T' },
-      { code:'N1', start:'19:00', band:'N' }, { code:'N2', start:'19:50', band:'N' },
+      { code:'M3', start:'10:10', band:'M' }, { code:'M4', start:'11:05', band:'M' },
+      { code:'T1', start:'13:30', band:'T' }, { code:'T2', start:'14:25', band:'T' },
+      { code:'T3', start:'15:40', band:'T' }, { code:'T4', start:'16:35', band:'T' },
+      { code:'N1', start:'19:00', band:'N' }, { code:'N2', start:'19:45', band:'N' },
       { code:'N3', start:'20:40', band:'N' }, { code:'N4', start:'21:30', band:'N' }
     ]
   };
@@ -42,20 +42,20 @@ window.EDITOR_DATA = (function(){
     { id:'t12', name:'Prof. Nunes'    },
   ];
 
-  const subjects = [
-    { id:'mat', name:'Matemática',      abbr:'MAT' },
-    { id:'por', name:'Português',       abbr:'POR' },
-    { id:'his', name:'História',        abbr:'HIS' },
-    { id:'geo', name:'Geografia',       abbr:'GEO' },
-    { id:'cie', name:'Ciências',        abbr:'CIE' },
-    { id:'ing', name:'Inglês',          abbr:'ING' },
-    { id:'edf', name:'Ed. Física',      abbr:'EDF' },
-    { id:'art', name:'Artes',           abbr:'ART' },
-    { id:'fis', name:'Física',          abbr:'FIS' },
-    { id:'qui', name:'Química',         abbr:'QUI' },
-    { id:'bio', name:'Biologia',        abbr:'BIO' },
-    { id:'soc', name:'Sociologia',      abbr:'SOC' },
-  ];
+const subjects = [
+  { id:'prg', name:'Programação',              abbr:'PRG' },
+  { id:'red', name:'Redes de Computadores',    abbr:'RED' },
+  { id:'eso', name:'Engenharia de Software',   abbr:'ESO' },
+  { id:'cal', name:'Cálculo',                  abbr:'CAL' },
+  { id:'cmp', name:'Compiladores',             abbr:'CMP' },
+  { id:'sis', name:'Sistemas Operacionais',    abbr:'SO'  },
+  { id:'ban', name:'Banco de Dados',           abbr:'BD'  },
+  { id:'ia',  name:'Inteligência Artificial',  abbr:'IA'  },
+  { id:'alg', name:'Algoritmos',               abbr:'ALG' },
+  { id:'seg', name:'Segurança da Informação',  abbr:'SEG' },
+  { id:'arq', name:'Arquitetura de Computadores', abbr:'ARQ' },
+  { id:'ppi', name:'Projeto e Prática Integrada', abbr:'PPI' },
+];
 
   // Pré-alocações iniciais por ÍNDICE da turma (0..7).
   // Os valores são índices lineares: (dia * 12) + período
@@ -71,20 +71,20 @@ window.EDITOR_DATA = (function(){
   };
 
   // Cards de aulas não alocadas iniciais (diversas)
-  const initialUnallocated = [
-    { id:'u1',  classId:'CC1', subjectId:'mat', teacherIds:['t1'],  duration:2 },
-    { id:'u2',  classId:'CC2', subjectId:'por', teacherIds:['t2'],  duration:1 },
-    { id:'u3',  classId:'CC3', subjectId:'his', teacherIds:['t3'],  duration:2 },
-    { id:'u4',  classId:'CC4', subjectId:'geo', teacherIds:['t4'],  duration:1 },
-    { id:'u5',  classId:'CC5', subjectId:'cie', teacherIds:['t5'],  duration:1 },
-    { id:'u6',  classId:'CC6', subjectId:'ing', teacherIds:['t6'],  duration:2 },
-    { id:'u7',  classId:'CC7', subjectId:'fis', teacherIds:['t10'], duration:1 },
-    { id:'u8',  classId:'CC8', subjectId:'qui', teacherIds:['t9'],  duration:2 },
-    { id:'u9',  classId:'CC1', subjectId:'bio', teacherIds:['t11'], duration:1 },
-    { id:'u10', classId:'CC2', subjectId:'art', teacherIds:['t8'],  duration:1 },
-    { id:'u11', classId:'CC3', subjectId:'edf', teacherIds:['t7'],  duration:1 },
-    { id:'u12', classId:'CC4', subjectId:'soc', teacherIds:['t2'],  duration:1 },
-  ];
+const initialUnallocated = [
+  { id:'u1',  classId:'CC1', subjectId:'prg', teacherIds:['t1'],  duration:3 },
+  { id:'u2',  classId:'CC2', subjectId:'red', teacherIds:['t2'],  duration:1 },
+  { id:'u3',  classId:'CC3', subjectId:'eso', teacherIds:['t3'],  duration:2 },
+  { id:'u4',  classId:'CC4', subjectId:'cal', teacherIds:['t4'],  duration:1 },
+  { id:'u5',  classId:'CC5', subjectId:'cmp', teacherIds:['t5'],  duration:1 },
+  { id:'u6',  classId:'CC6', subjectId:'sis', teacherIds:['t6'],  duration:2 },
+  { id:'u7',  classId:'CC7', subjectId:'ban', teacherIds:['t10'], duration:1 },
+  { id:'u8',  classId:'CC8', subjectId:'ia',  teacherIds:['t9'],  duration:2 },
+  { id:'u9',  classId:'CC1', subjectId:'alg', teacherIds:['t11'], duration:1 },
+  { id:'u10', classId:'CC2', subjectId:'seg', teacherIds:['t8'],  duration:1 },
+  { id:'u11', classId:'CC3', subjectId:'arq', teacherIds:['t7'],  duration:1 },
+  { id:'u12', classId:'CC4', subjectId:'ppi', teacherIds:['t2'],  duration:1 },
+];
 
   return { meta, classes, teachers, subjects, initialAllocations, initialUnallocated };
 })();
