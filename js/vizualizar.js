@@ -33,12 +33,12 @@ function lessonMarkup(lesson, subjectById, classById, opts = {}){
     </div>`;
 }
 
-
-function cellTitle(lesson, classById, subjectById, teacherById){
-  const cls = classById[lesson.classId]?.name ?? lesson.classId;
-  const subj = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
+function cellTitle(lesson, classById, subjectById, teacherById, roomById){
+  const cls   = classById[lesson.classId]?.name ?? lesson.classId;
+  const subj  = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
   const profs = (lesson.teacherIds||[]).map(id => teacherById[id]?.name ?? id).join(', ');
-  return `${cls} • ${profs} • ${subj} (dur: ${lesson.duration})`;
+  const room  = lesson.roomId ? (roomById?.[lesson.roomId]?.name || lesson.roomId) : '—';
+  return `${cls} • ${profs} • ${subj} • ${room} (dur: ${lesson.duration})`;
 }
 
 /* ---------- Headers dinâmicos ---------- */
@@ -126,14 +126,14 @@ function baseCell(turmaId, dia, periodo){
 }
 
 /** Aplica o “bloco único” na visualização (sem eventos de clique). */
-function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teacherById, opts = {}){
+function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teacherById, roomById, opts = {}){
   for (let k=0; k<lesson.duration; k++){
     const cell = vizMap[turmaId][day][start + k];
     if (k === 0){
       cell.classList.add('occupied', 'block-head');
       cell.style.gridColumnEnd = `span ${lesson.duration}`;
       cell.innerHTML = lessonMarkup(lesson, subjectById, classById, opts);
-      cell.title = cellTitle(lesson, classById, subjectById, teacherById);
+      cell.title = cellTitle(lesson, classById, subjectById, teacherById, roomById);
       cell.style.display = '';
     } else {
       cell.classList.add('occupied', 'block-tail');
@@ -145,17 +145,17 @@ function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teac
   }
 }
 
-
 /* ---------- Grade ---------- */
 // FULL: linhas = turmas; colunas = dias (cada dia 12 períodos)
 function renderGridFull(data){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
 
-  const { classes, subjects, teachers, meta, allocations } = data;
+  const { classes, subjects, teachers, rooms, meta, allocations } = data;
   const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
+  const roomById    = Object.fromEntries((rooms || []).map(r => [r.id, r]));
   const P = meta.periods.length;
 
   ensureVizMap(classes, meta);
@@ -184,7 +184,7 @@ function renderGridFull(data){
 
   // pintar blocos (cada allocation já tem duration)
   allocations.forEach(a=>{
-    placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById);
+    placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById, roomById);
   });
 }
 
@@ -193,10 +193,11 @@ function renderGridSingleClass(data, classId){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
 
-  const { classes, subjects, teachers, meta, allocations } = data;
+  const { classes, subjects, teachers, rooms, meta, allocations } = data;
   const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
+  const roomById    = Object.fromEntries((rooms || []).map(r => [r.id, r]));
   const P = meta.periods.length;
   ensureVizMap(classes, meta); // ainda usamos para reaproveitar placeBlockViz
 
@@ -226,7 +227,7 @@ function renderGridSingleClass(data, classId){
 
   allocations
     .filter(a => a.classId === classId)
-    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById));
+    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById, roomById));
 }
 
 // PROFESSOR: linhas = dias; colunas = 12 períodos (só marca onde ele dá aula)
@@ -234,10 +235,11 @@ function renderGridSingleTeacher(data, teacherId){
   const grid = document.getElementById('viz-grid');
   grid.innerHTML = '';
 
-  const { classes, subjects, teachers, meta, allocations } = data;
+  const { classes, subjects, teachers, rooms, meta, allocations } = data;
   const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
+  const roomById    = Object.fromEntries((rooms || []).map(r => [r.id, r]));
   const P = meta.periods.length;
 
   // zera e garante estrutura em memória para todas as turmas
@@ -275,13 +277,11 @@ function renderGridSingleTeacher(data, teacherId){
     grid.appendChild(row);
   }
 
-  // pinta apenas as aulas que envolvem o professor
-allocations
-  .filter(a => (a.teacherIds || []).includes(teacherId))
-  .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById, { withClassBadge: true }));
-
+  // pinta apenas as aulas que envolvem o professor (com badge da turma)
+  allocations
+    .filter(a => (a.teacherIds || []).includes(teacherId))
+    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById, roomById, { withClassBadge: true }));
 }
-
 
 /* ---------- Filtros ---------- */
 function populateFilters(data){

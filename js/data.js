@@ -3,8 +3,9 @@
    - classes (turmas)
    - subjects (com sigla abbr)
    - teachers
+   - rooms (NOVO)
    - initialAllocations (por índice de turma)
-   - initialUnallocated (cards não alocados)
+   - initialUnallocated (cards não alocados, agora com roomId)
 */
 
 window.EDITOR_DATA = (function(){
@@ -42,20 +43,29 @@ window.EDITOR_DATA = (function(){
     { id:'t12', name:'Prof. Nunes'    },
   ];
 
-const subjects = [
-  { id:'prg', name:'Programação',              abbr:'PRG' },
-  { id:'red', name:'Redes de Computadores',    abbr:'RED' },
-  { id:'eso', name:'Engenharia de Software',   abbr:'ESO' },
-  { id:'cal', name:'Cálculo',                  abbr:'CAL' },
-  { id:'cmp', name:'Compiladores',             abbr:'CMP' },
-  { id:'sis', name:'Sistemas Operacionais',    abbr:'SO'  },
-  { id:'ban', name:'Banco de Dados',           abbr:'BD'  },
-  { id:'ia',  name:'Inteligência Artificial',  abbr:'IA'  },
-  { id:'alg', name:'Algoritmos',               abbr:'ALG' },
-  { id:'seg', name:'Segurança da Informação',  abbr:'SEG' },
-  { id:'arq', name:'Arquitetura de Computadores', abbr:'ARQ' },
-  { id:'ppi', name:'Projeto e Prática Integrada', abbr:'PPI' },
-];
+  // NOVO: salas (placeholders)
+  const rooms = [
+    { id:'R101', name:'Sala 101' },
+    { id:'R102', name:'Sala 102' },
+    { id:'R201', name:'Sala 201' },
+    { id:'LAB1', name:'Laboratório 1' },
+    { id:'AUD',  name:'Auditório' }
+  ];
+
+  const subjects = [
+    { id:'prg', name:'Programação',                abbr:'PRG' },
+    { id:'red', name:'Redes de Computadores',      abbr:'RED' },
+    { id:'eso', name:'Engenharia de Software',     abbr:'ESO' },
+    { id:'cal', name:'Cálculo',                    abbr:'CAL' },
+    { id:'cmp', name:'Compiladores',               abbr:'CMP' },
+    { id:'sis', name:'Sistemas Operacionais',      abbr:'SO'  },
+    { id:'ban', name:'Banco de Dados',             abbr:'BD'  },
+    { id:'ia',  name:'Inteligência Artificial',    abbr:'IA'  },
+    { id:'alg', name:'Algoritmos',                 abbr:'ALG' },
+    { id:'seg', name:'Segurança da Informação',    abbr:'SEG' },
+    { id:'arq', name:'Arquitetura de Computadores',abbr:'ARQ' },
+    { id:'ppi', name:'Projeto e Prática Integrada',abbr:'PPI' },
+  ];
 
   // Pré-alocações iniciais por ÍNDICE da turma (0..7).
   // Os valores são índices lineares: (dia * 12) + período
@@ -70,21 +80,21 @@ const subjects = [
     7: [9, 21, 33, 45],             // CC8
   };
 
-  // Cards de aulas não alocadas iniciais (diversas)
-const initialUnallocated = [
-  { id:'u1',  classId:'CC1', subjectId:'prg', teacherIds:['t1'],  duration:3 },
-  { id:'u2',  classId:'CC2', subjectId:'red', teacherIds:['t2'],  duration:1 },
-  { id:'u3',  classId:'CC3', subjectId:'eso', teacherIds:['t3'],  duration:2 },
-  { id:'u4',  classId:'CC4', subjectId:'cal', teacherIds:['t4'],  duration:1 },
-  { id:'u5',  classId:'CC5', subjectId:'cmp', teacherIds:['t5'],  duration:1 },
-  { id:'u6',  classId:'CC6', subjectId:'sis', teacherIds:['t6'],  duration:2 },
-  { id:'u7',  classId:'CC7', subjectId:'ban', teacherIds:['t10'], duration:1 },
-  { id:'u8',  classId:'CC8', subjectId:'ia',  teacherIds:['t9'],  duration:2 },
-  { id:'u9',  classId:'CC1', subjectId:'alg', teacherIds:['t11'], duration:1 },
-  { id:'u10', classId:'CC2', subjectId:'seg', teacherIds:['t8'],  duration:1 },
-  { id:'u11', classId:'CC3', subjectId:'arq', teacherIds:['t7'],  duration:1 },
-  { id:'u12', classId:'CC4', subjectId:'ppi', teacherIds:['t2'],  duration:1 },
-];
+  // Cards de aulas não alocadas iniciais (agora com roomId)
+  const initialUnallocated = [
+    { id:'u1',  classId:'CC1', subjectId:'prg', teacherIds:['t1'],  roomId:'R101', duration:3 },
+    { id:'u2',  classId:'CC2', subjectId:'red', teacherIds:['t2'],  roomId:'R102', duration:1 },
+    { id:'u3',  classId:'CC3', subjectId:'eso', teacherIds:['t3'],  roomId:'R201', duration:2 },
+    { id:'u4',  classId:'CC4', subjectId:'cal', teacherIds:['t4'],  roomId:'R101', duration:1 },
+    { id:'u5',  classId:'CC5', subjectId:'cmp', teacherIds:['t5'],  roomId:'LAB1', duration:1 },
+    { id:'u6',  classId:'CC6', subjectId:'sis', teacherIds:['t6'],  roomId:'R102', duration:2 },
+    { id:'u7',  classId:'CC7', subjectId:'ban', teacherIds:['t10'], roomId:'LAB1', duration:1 },
+    { id:'u8',  classId:'CC8', subjectId:'ia',  teacherIds:['t9'],  roomId:'LAB1', duration:2 },
+    { id:'u9',  classId:'CC1', subjectId:'alg', teacherIds:['t11'], roomId:'R201', duration:1 },
+    { id:'u10', classId:'CC2', subjectId:'seg', teacherIds:['t8'],  roomId:'AUD',  duration:1 },
+    { id:'u11', classId:'CC3', subjectId:'arq', teacherIds:['t7'],  roomId:'AUD',  duration:1 },
+    { id:'u12', classId:'CC4', subjectId:'ppi', teacherIds:['t2'],  roomId:'R101', duration:1 },
+  ];
 
-  return { meta, classes, teachers, subjects, initialAllocations, initialUnallocated };
+  return { meta, classes, teachers, subjects, rooms, initialAllocations, initialUnallocated };
 })();

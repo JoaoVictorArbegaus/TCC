@@ -1,5 +1,5 @@
 /* === Dados vindos do data.js === */
-const { meta, classes, teachers, subjects, initialAllocations, initialUnallocated } = window.EDITOR_DATA;
+const { meta, classes, teachers, subjects, rooms, initialAllocations, initialUnallocated } = window.EDITOR_DATA;
 
 /* === Estado de cards não alocados (clonamos para não mutar o data.js) === */
 let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated || []));
@@ -9,24 +9,28 @@ const P = meta.periods.length;
 const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
 const subjectById = Object.fromEntries(subjects.map(s => [s.id, s]));
 const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
+const roomById    = Object.fromEntries((rooms || []).map(r => [r.id, r]));
 
-function bandColor(b){ return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500'); }
+function bandColor(b){
+  return b==='M' ? 'bg-green-500' : (b==='T' ? 'bg-yellow-500' : 'bg-purple-500');
+}
 function cellTitle(lesson){
-  const cls = classById[lesson.classId]?.name ?? lesson.classId;
-  const subj = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
+  const cls   = classById[lesson.classId]?.name ?? lesson.classId;
+  const subj  = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
   const profs = (lesson.teacherIds||[]).map(id => teacherById[id]?.name ?? id).join(', ');
-  return `${cls} • ${profs} • ${subj} (dur: ${lesson.duration})`;
+  const room  = lesson.roomId ? (roomById[lesson.roomId]?.name || lesson.roomId) : '—';
+  return `${cls} • ${profs} • ${subj} • ${room} (dur: ${lesson.duration})`;
 }
 function lessonMarkup(lesson){
-  const subj  = subjectById[lesson.subjectId];
+  const subj = subjectById[lesson.subjectId];
   const abbr = subj?.abbr || (subj?.name?.slice(0,3) ?? '---').toUpperCase();
   return `<div class="text-center leading-tight"><div class="font-bold text-sm">${abbr}</div></div>`;
 }
 
 /* === Estado === */
 const mapCells = {};                 // mapCells[turmaId][day][period] = elemento
-let selectedLessonId = null;         // seleção de card (na área de não alocadas)
-let pickedFromGrid = null;           // { turmaId, day, startPeriod, cells, lesson, group } quando “pegamos” da grade
+let selectedLessonId = null;         // seleção de card (não alocadas)
+let pickedFromGrid = null;           // { turmaId, day, startPeriod, cells, lesson, group }
 let gidCounter = 1;
 const newGroupId = () => `g${gidCounter++}`;
 
@@ -54,9 +58,10 @@ function renderUnallocated(){
   list.innerHTML = '';
 
   unallocatedLessons.forEach(lesson=>{
-    const cls = classById[lesson.classId]?.name ?? lesson.classId;
-    const subj = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
+    const cls   = classById[lesson.classId]?.name ?? lesson.classId;
+    const subj  = subjectById[lesson.subjectId]?.name ?? lesson.subjectId;
     const profs = (lesson.teacherIds||[]).map(id=>teacherById[id]?.name??id).join(', ');
+    const room  = lesson.roomId ? (roomById[lesson.roomId]?.name || lesson.roomId) : '—';
 
     const card = document.createElement('button');
     card.type = 'button';
@@ -65,6 +70,7 @@ function renderUnallocated(){
     card.innerHTML = `
       <div class="text-sm font-semibold">${cls} • ${subj}</div>
       <div class="text-xs text-gray-600">${profs}</div>
+      <div class="text-xs text-gray-500">${room}</div>
       <div class="mt-1 inline-flex items-center gap-2">
         <span class="px-2 py-0.5 text-[10px] rounded bg-gray-200">dur: ${lesson.duration}</span>
         <span class="px-2 py-0.5 text-[10px] rounded bg-gray-200">id: ${lesson.id}</span>
@@ -75,8 +81,7 @@ function renderUnallocated(){
     // clicar em card: seleciona/deseleciona o card
     card.addEventListener('click', ()=>{
       selectedLessonId = (selectedLessonId===lesson.id)? null : lesson.id;
-      // se havia uma aula “pegada” da grade e clicou em card, não tem efeito de descarte.
-      // O descarte para não alocadas é clicando no fundo da área (ver abaixo).
+      // observar: se existe pickedFromGrid, clicar em card não descarta; descarte é clicando no fundo da área.
       renderUnallocated();
     });
 
@@ -107,8 +112,10 @@ function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgno
   return true;
 }
 
+/* === placeBlock com “mescla visual” (block-head + block-tail) === */
 function placeBlock(turmaId, day, startPeriod, lesson){
   const group = newGroupId();
+
   for (let k = 0; k < lesson.duration; k++){
     const cell = mapCells[turmaId][day][startPeriod + k];
     cell.classList.add('occupied');
@@ -117,7 +124,8 @@ function placeBlock(turmaId, day, startPeriod, lesson){
 
     if (k === 0) {
       cell.classList.add('block-head');
-      cell.style.gridColumnEnd = `span ${lesson.duration}`;
+      cell.style.gridColumnStart = String(startPeriod + 1); // ancora na coluna certa
+      cell.style.gridColumnEnd   = `span ${lesson.duration}`;
       cell.innerHTML = lessonMarkup(lesson);
       cell.title = cellTitle(lesson);
       cell.style.display = '';
@@ -148,7 +156,7 @@ function getGroupCells(cell){
 
 function removeGroupCells(cells){
   cells.forEach(c=>{
-    c.classList.remove('occupied','block-head','block-tail', 'ring-2', 'ring-amber-400');
+    c.classList.remove('occupied','block-head','block-tail','ring-2','ring-amber-400');
     c.style.gridColumnEnd = 'span 1';
     c.style.display = '';
     c.innerHTML = '';
@@ -158,9 +166,8 @@ function removeGroupCells(cells){
   });
 }
 
-/* ----------------- Pick (pegar da grade), mover e soltar ----------------- */
+/* ----------------- Pick da grade (pegar/mover/soltar) ----------------- */
 function highlightPicked(cells){
-  // destaca apenas a cabeça do bloco
   const head = cells.find(c=>c.classList.contains('block-head')) || cells[0];
   head.classList.add('ring-2','ring-amber-400');
 }
@@ -168,7 +175,6 @@ function clearPickedHighlight(){
   if (!pickedFromGrid) return;
   pickedFromGrid.cells.forEach(c=>c.classList.remove('ring-2','ring-amber-400'));
 }
-
 function pickFromGrid(cell){
   const info = getGroupCells(cell);
   pickedFromGrid = info;
@@ -182,25 +188,32 @@ function cancelPick(){
 function movePickedToCell(targetCell){
   if (!pickedFromGrid) return;
 
-  const { turmaId: oldTurma, day: oldDay, startPeriod: oldStart, cells: oldCells, lesson, group } = pickedFromGrid;
+  const { cells: oldCells, lesson, group } = pickedFromGrid;
 
   const turmaId = targetCell.dataset.turmaId;
   const day     = Number(targetCell.dataset.dia);
   const startP  = Number(targetCell.dataset.periodo);
 
-  // tentar mover (permitindo overwrite, ignorando o próprio grupo)
+  // permitir overwrite ignorando o próprio grupo
   if (!canPlaceBlockOverwrite(turmaId, day, startP, lesson.duration, group) || lesson.classId !== turmaId){
-    // feedback e mantém pick
     targetCell.classList.add('ring-2','ring-red-400');
     setTimeout(()=>targetCell.classList.remove('ring-2','ring-red-400'), 350);
     return;
   }
 
-  // remove antigo, coloca no novo
+  // se havia bloco no destino, remove-o e manda pro cards
+  if (targetCell.classList.contains('occupied') && targetCell.dataset.group){
+    const { cells: victimCells, lesson: victimLesson } = getGroupCells(targetCell);
+    removeGroupCells(victimCells);
+    unallocatedLessons.push(victimLesson);
+  }
+
+  // aplica o move
   clearPickedHighlight();
   removeGroupCells(oldCells);
   placeBlock(turmaId, day, startP, lesson);
   pickedFromGrid = null;
+  renderUnallocated();
 }
 
 /* ----------------- Grade ----------------- */
@@ -208,7 +221,10 @@ function criarGrade(){
   const grid = document.getElementById('schedule-grid');
   grid.innerHTML = '';
 
-  classes.forEach(t=>{ mapCells[t.id] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null)); });
+  // prep mapa
+  classes.forEach(t=>{
+    mapCells[t.id] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null));
+  });
 
   classes.forEach((turma, turmaIndex)=>{
     const turmaRow = document.createElement('div');
@@ -230,19 +246,23 @@ function criarGrade(){
         cell.dataset.dia = String(dia);
         cell.dataset.periodo = String(periodo);
 
-        // ancora cada período na sua coluna (importante para span)
-        cell.style.gridColumnStart = String(periodo+1);
-        cell.style.gridColumnEnd = 'span 1';
+        // ancora a célula na coluna correspondente (necessário para o grid span do head)
+        cell.style.gridColumnStart = String(periodo + 1);
+        cell.style.gridColumnEnd   = 'span 1';
 
         mapCells[turma.id][dia][periodo] = cell;
 
-        // pré-alocações iniciais (exemplo dur=1)
+        // pré-alocações iniciais (exemplo dur=1; com sala)
         if (initialAllocations?.[turmaIndex]?.includes(dia*P + periodo)){
+          const roomIds = (rooms || []).map(r => r.id);
+          const roomId  = roomIds.length ? roomIds[(turmaIndex + dia + periodo) % roomIds.length] : null;
+
           const lesson = {
             id: `init-${turma.id}-${dia}-${periodo}`,
             classId: turma.id,
             subjectId: subjects[(turmaIndex + periodo) % subjects.length].id,
             teacherIds: [teachers[(dia+periodo) % teachers.length].id],
+            roomId,
             duration: 1
           };
           placeBlock(turma.id, dia, periodo, lesson);
@@ -250,31 +270,35 @@ function criarGrade(){
           cell.title = `${turma.name} - Clique para alocar`;
         }
 
-        // Clique no slot
+        // Clique em slot
         cell.addEventListener('click', ()=>{
-          // 1) se estou com uma aula “pegada” da grade => tentar mover para este slot
+          const turmaId = cell.dataset.turmaId;
+          const day     = Number(cell.dataset.dia);
+          const startP  = Number(cell.dataset.periodo);
+
+          // 1) Se estou com bloco pickado da grade => tenta mover
           if (pickedFromGrid){
             movePickedToCell(cell);
             return;
           }
 
-          // 2) se tenho um card selecionado => tentar alocar/overwrite a partir do card
+          // 2) Se tenho um card selecionado => tentar alocar / overwrite
           if (selectedLessonId){
             const lesson = unallocatedLessons.find(l=>l.id===selectedLessonId);
             if (!lesson) return;
-            // slot ocupado => overwrite (usa a regra normal)
+
+            // overwrite
             if (cell.classList.contains('occupied')){
               const { group } = getGroupCells(cell);
-              if (!canPlaceBlockOverwrite(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson.duration, group)
-                  || lesson.classId !== cell.dataset.turmaId){
+              if (!canPlaceBlockOverwrite(turmaId, day, startP, lesson.duration, group) || lesson.classId !== turmaId){
                 cell.classList.add('ring-2','ring-red-400');
                 setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'), 350);
                 return;
               }
               const { cells: oldCells, lesson: oldLesson } = getGroupCells(cell);
               removeGroupCells(oldCells);
-              placeBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson);
-              // remove card e devolve antigo
+              placeBlock(turmaId, day, startP, lesson);
+              // remove card e devolve o antigo pra pilha
               const idx = unallocatedLessons.findIndex(l=>l.id===lesson.id);
               if (idx !== -1) unallocatedLessons.splice(idx,1);
               unallocatedLessons.push(oldLesson);
@@ -283,13 +307,13 @@ function criarGrade(){
               return;
             }
 
-            // slot vazio => alocar
-            if (lesson.classId !== cell.dataset.turmaId || !canPlaceBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson.duration)){
+            // slot vazio
+            if (lesson.classId !== turmaId || !canPlaceBlock(turmaId, day, startP, lesson.duration)){
               cell.classList.add('ring-2','ring-red-400');
               setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'), 350);
               return;
             }
-            placeBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson);
+            placeBlock(turmaId, day, startP, lesson);
             const idx = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
             if (idx !== -1) unallocatedLessons.splice(idx,1);
             selectedLessonId = null;
@@ -297,37 +321,36 @@ function criarGrade(){
             return;
           }
 
-          // 3) sem card e clicou em bloco ocupado => “pegar da grade”
+          // 3) Sem card selecionado e clicou em bloco ocupado => “pegar da grade”
           if (cell.classList.contains('occupied') && cell.dataset.group){
             const info = getGroupCells(cell);
-            // se clicar de novo no mesmo bloco enquanto já está pickado => cancela
             if (pickedFromGrid && pickedFromGrid.group === info.group){
+              // clique novamente no mesmo bloco => cancela
               cancelPick();
             } else {
-              cancelPick(); // limpa qualquer pick anterior
+              cancelPick(); // limpa pick anterior
               pickFromGrid(cell);
             }
             return;
           }
 
-          // 4) slot vazio e nada selecionado => feedback leve
+          // 4) Slot vazio e nada selecionado => feedback sutil
           cell.classList.add('ring-2','ring-blue-400');
           setTimeout(()=>cell.classList.remove('ring-2','ring-blue-400'), 250);
         });
 
         dayColumn.appendChild(cell);
-      }
+      } // fim períodos
       turmaRow.appendChild(dayColumn);
-    }
+    } // fim dias
     grid.appendChild(turmaRow);
-  });
+  }); // fim classes
 
-  // clique na área de “Aulas não alocadas” (fundo) descarta a aula pickada para os cards
+  // Clique no FUNDO da área de “Aulas não alocadas” => descarta o bloco pickado para os cards
   const unallocArea = document.getElementById('unallocated-list');
   if (unallocArea){
     unallocArea.addEventListener('click', (e)=>{
-      // Só considera clique no fundo da área, não em um card:
-      if (e.target !== unallocArea) return;
+      if (e.target !== unallocArea) return; // ignora cliques nos cards
       if (!pickedFromGrid) return;
       const { lesson, cells } = pickedFromGrid;
       clearPickedHighlight();
@@ -349,7 +372,7 @@ init();
 
 /* ----------------- Consolidação ----------------- */
 function consolidar(){
-  // Se estiver com uma aula pickada, “solta” antes consolidar (mantém onde está)
+  // Se estiver com uma aula pickada, “solta” visualmente (mantém onde está)
   cancelPick();
 
   const allocations = [];
@@ -366,7 +389,8 @@ function consolidar(){
               start: p,
               duration: lesson.duration,
               subjectId: lesson.subjectId,
-              teacherIds: lesson.teacherIds || []
+              teacherIds: lesson.teacherIds || [],
+              roomId: lesson.roomId || null
             });
           }
         }
@@ -374,12 +398,12 @@ function consolidar(){
     }
   });
 
-  const consolidated = { meta, classes, teachers, subjects, allocations };
+  const consolidated = { meta, classes, teachers, subjects, rooms, allocations };
   localStorage.setItem('consolidatedSchedule', JSON.stringify(consolidated));
   window.location.href = 'vizualizar.html';
 }
 
-// --- Confirmação antes de consolidar ---
+/* --- Confirmação antes de consolidar --- */
 const btnConsolidar = document.getElementById('btn-consolidar');
 if (btnConsolidar){
   btnConsolidar.addEventListener('click', () => {
