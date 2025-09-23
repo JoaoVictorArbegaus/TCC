@@ -15,11 +15,24 @@ function loadConsolidated(){
   return JSON.parse(raw);
 }
 
-function lessonMarkup(lesson, subjectById){
+function lessonMarkup(lesson, subjectById, classById, opts = {}){
   const subj  = subjectById[lesson.subjectId];
-  const abbr = subj?.abbr || (subj?.name?.slice(0,3) ?? '---').toUpperCase();
-  return `<div class="text-center leading-tight font-bold text-sm">${abbr}</div>`;
+  const abbr  = subj?.abbr || (subj?.name?.slice(0,3) ?? '---').toUpperCase();
+  const showClass = !!opts.withClassBadge;
+  const classLabel = showClass
+    ? (classById?.[lesson.classId]?.name || lesson.classId || '')
+    : '';
+
+  // badge opcional com a turma (fica embaixo do código da matéria)
+  return `
+    <div class="flex flex-col items-center justify-center leading-tight font-bold text-sm">
+      <span>${abbr}</span>
+      ${showClass && classLabel
+        ? `<span class="mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">${classLabel}</span>`
+        : ''}
+    </div>`;
 }
+
 
 function cellTitle(lesson, classById, subjectById, teacherById){
   const cls = classById[lesson.classId]?.name ?? lesson.classId;
@@ -113,13 +126,13 @@ function baseCell(turmaId, dia, periodo){
 }
 
 /** Aplica o “bloco único” na visualização (sem eventos de clique). */
-function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teacherById){
+function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teacherById, opts = {}){
   for (let k=0; k<lesson.duration; k++){
     const cell = vizMap[turmaId][day][start + k];
     if (k === 0){
       cell.classList.add('occupied', 'block-head');
       cell.style.gridColumnEnd = `span ${lesson.duration}`;
-      cell.innerHTML = lessonMarkup(lesson, subjectById);
+      cell.innerHTML = lessonMarkup(lesson, subjectById, classById, opts);
       cell.title = cellTitle(lesson, classById, subjectById, teacherById);
       cell.style.display = '';
     } else {
@@ -131,6 +144,7 @@ function placeBlockViz(turmaId, day, start, lesson, subjectById, classById, teac
     }
   }
 }
+
 
 /* ---------- Grade ---------- */
 // FULL: linhas = turmas; colunas = dias (cada dia 12 períodos)
@@ -262,9 +276,10 @@ function renderGridSingleTeacher(data, teacherId){
   }
 
   // pinta apenas as aulas que envolvem o professor
-  allocations
-    .filter(a => (a.teacherIds || []).includes(teacherId))
-    .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById));
+allocations
+  .filter(a => (a.teacherIds || []).includes(teacherId))
+  .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById, { withClassBadge: true }));
+
 }
 
 
