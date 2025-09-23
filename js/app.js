@@ -2,7 +2,7 @@
 const { meta, classes, teachers, subjects, initialAllocations, initialUnallocated } = window.EDITOR_DATA;
 
 /* === Estado de cards não alocados (clonamos para não mutar o data.js) === */
-let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated || [])); 
+let unallocatedLessons = JSON.parse(JSON.stringify(initialUnallocated || []));
 
 /* === Utilitários === */
 const P = meta.periods.length;
@@ -26,8 +26,8 @@ function lessonMarkup(lesson){
 }
 
 /* === Estado === */
-const mapCells = {};                 
-let selectedLessonId = null;         
+const mapCells = {};
+let selectedLessonId = null;
 let gidCounter = 1;
 const newGroupId = () => `g${gidCounter++}`;
 
@@ -106,7 +106,7 @@ function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgno
   return true;
 }
 
-/* === NOVO placeBlock com fusão de células === */
+/* === placeBlock com fusão de células === */
 function placeBlock(turmaId, day, startPeriod, lesson){
   const group = newGroupId();
 
@@ -147,7 +147,7 @@ function getGroupCells(cell){
   return { turmaId, day, startPeriod, cells, lesson, group };
 }
 
-/* === NOVO removeGroupCells === */
+/* === removeGroupCells === */
 function removeGroupCells(cells){
   cells.forEach(c=>{
     c.classList.remove('occupied','block-head','block-tail');
@@ -294,4 +294,12 @@ function consolidar(){
   window.location.href = 'vizualizar.html';
 }
 
-document.getElementById('btn-consolidar').addEventListener('click', consolidar);
+/* Confirmação antes de consolidar (não altera a lógica da grade) */
+const btnConsolidar = document.getElementById('btn-consolidar');
+if (btnConsolidar){
+  btnConsolidar.addEventListener('click', () => {
+    const ok = window.confirm('Você tem certeza que deseja consolidar? Esta ação é irreversível.');
+    if (!ok) return;
+    consolidar();
+  });
+}

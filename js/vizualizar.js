@@ -225,7 +225,9 @@ function renderGridSingleTeacher(data, teacherId){
   const teacherById = Object.fromEntries(teachers.map(t => [t.id, t]));
   const classById   = Object.fromEntries(classes.map(c => [c.id, c]));
   const P = meta.periods.length;
-  ensureVizMap(classes, meta); // apenas para reusar placeBlockViz com a classId do allocation
+
+  // zera e garante estrutura em memória para todas as turmas
+  ensureVizMap(classes, meta);
 
   const dayNamesFull = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -241,24 +243,30 @@ function renderGridSingleTeacher(data, teacherId){
     const periodsCol = document.createElement('div');
     periodsCol.className = 'day-column';
 
+    // criamos UMA linha de células por dia e “reapontamos” para TODAS as turmas
+    const cellsOfDay = [];
     for (let p=0; p<P; p++){
-      // usamos a primeira turma apenas para ancoragem visual do grid;
-      // o bloco real será pintado pela classId do allocation
-      const fakeClass = classes[0]?.id || 'FAKE';
-      if (!vizMap[fakeClass]) vizMap[fakeClass] = Array.from({length: meta.days.length}, ()=>Array(P).fill(null));
-      const cell = baseCell(fakeClass, dia, p);
-      vizMap[fakeClass][dia][p] = cell;
+      const cell = baseCell('ANY', dia, p); // turma não importa aqui
+      cellsOfDay.push(cell);
       periodsCol.appendChild(cell);
     }
+    // aponta a MESMA referência de célula para todas as turmas neste dia
+    classes.forEach(c=>{
+      for (let p=0; p<P; p++){
+        vizMap[c.id][dia][p] = cellsOfDay[p];
+      }
+    });
 
     row.appendChild(periodsCol);
     grid.appendChild(row);
   }
 
+  // pinta apenas as aulas que envolvem o professor
   allocations
     .filter(a => (a.teacherIds || []).includes(teacherId))
     .forEach(a => placeBlockViz(a.classId, a.day, a.start, a, subjectById, classById, teacherById));
 }
+
 
 /* ---------- Filtros ---------- */
 function populateFilters(data){
