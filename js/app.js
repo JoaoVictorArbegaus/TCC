@@ -20,18 +20,17 @@ function cellTitle(lesson){
 function lessonMarkup(lesson){
   const subj  = subjectById[lesson.subjectId];
   const abbr = subj?.abbr || (subj?.name?.slice(0,3) ?? '---').toUpperCase();
-  return `<div class="text-center leading-tight">
-            <div class="font-bold text-sm">${abbr}</div>
-          </div>`;
+  return `<div class="text-center leading-tight"><div class="font-bold text-sm">${abbr}</div></div>`;
 }
 
 /* === Estado === */
-const mapCells = {};
-let selectedLessonId = null;
+const mapCells = {};                 // mapCells[turmaId][day][period] = elemento
+let selectedLessonId = null;         // seleção de card (na área de não alocadas)
+let pickedFromGrid = null;           // { turmaId, day, startPeriod, cells, lesson, group } quando “pegamos” da grade
 let gidCounter = 1;
 const newGroupId = () => `g${gidCounter++}`;
 
-/* --------- Cabeçalho de períodos --------- */
+/* ----------------- Cabeçalho de períodos ----------------- */
 function renderPeriodsHeader(){
   const header = document.getElementById('periods-header');
   while (header.children.length > 1) header.removeChild(header.lastChild);
@@ -49,7 +48,7 @@ function renderPeriodsHeader(){
   }
 }
 
-/* --------- Cards (não alocadas) --------- */
+/* ----------------- Render cards (não alocadas) ----------------- */
 function renderUnallocated(){
   const list = document.getElementById('unallocated-list');
   list.innerHTML = '';
@@ -73,8 +72,11 @@ function renderUnallocated(){
 
     if (selectedLessonId === lesson.id) card.classList.add('card-selected');
 
+    // clicar em card: seleciona/deseleciona o card
     card.addEventListener('click', ()=>{
       selectedLessonId = (selectedLessonId===lesson.id)? null : lesson.id;
+      // se havia uma aula “pegada” da grade e clicou em card, não tem efeito de descarte.
+      // O descarte para não alocadas é clicando no fundo da área (ver abaixo).
       renderUnallocated();
     });
 
@@ -84,7 +86,7 @@ function renderUnallocated(){
   document.getElementById('unalloc-count').textContent = `${unallocatedLessons.length} pendente(s)`;
 }
 
-/* --------- Helpers de bloco --------- */
+/* ----------------- Helpers de bloco ----------------- */
 function canPlaceBlock(turmaId, day, startPeriod, duration){
   if (startPeriod + duration > P) return false;
   for (let k=0;k<duration;k++){
@@ -93,7 +95,6 @@ function canPlaceBlock(turmaId, day, startPeriod, duration){
   }
   return true;
 }
-
 function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgnore){
   if (startPeriod + duration > P) return false;
   for (let k=0;k<duration;k++){
@@ -106,10 +107,8 @@ function canPlaceBlockOverwrite(turmaId, day, startPeriod, duration, groupToIgno
   return true;
 }
 
-/* === placeBlock com fusão de células === */
 function placeBlock(turmaId, day, startPeriod, lesson){
   const group = newGroupId();
-
   for (let k = 0; k < lesson.duration; k++){
     const cell = mapCells[turmaId][day][startPeriod + k];
     cell.classList.add('occupied');
@@ -147,10 +146,9 @@ function getGroupCells(cell){
   return { turmaId, day, startPeriod, cells, lesson, group };
 }
 
-/* === removeGroupCells === */
 function removeGroupCells(cells){
   cells.forEach(c=>{
-    c.classList.remove('occupied','block-head','block-tail');
+    c.classList.remove('occupied','block-head','block-tail', 'ring-2', 'ring-amber-400');
     c.style.gridColumnEnd = 'span 1';
     c.style.display = '';
     c.innerHTML = '';
@@ -160,7 +158,52 @@ function removeGroupCells(cells){
   });
 }
 
-/* --------- Grade --------- */
+/* ----------------- Pick (pegar da grade), mover e soltar ----------------- */
+function highlightPicked(cells){
+  // destaca apenas a cabeça do bloco
+  const head = cells.find(c=>c.classList.contains('block-head')) || cells[0];
+  head.classList.add('ring-2','ring-amber-400');
+}
+function clearPickedHighlight(){
+  if (!pickedFromGrid) return;
+  pickedFromGrid.cells.forEach(c=>c.classList.remove('ring-2','ring-amber-400'));
+}
+
+function pickFromGrid(cell){
+  const info = getGroupCells(cell);
+  pickedFromGrid = info;
+  highlightPicked(info.cells);
+}
+function cancelPick(){
+  clearPickedHighlight();
+  pickedFromGrid = null;
+}
+
+function movePickedToCell(targetCell){
+  if (!pickedFromGrid) return;
+
+  const { turmaId: oldTurma, day: oldDay, startPeriod: oldStart, cells: oldCells, lesson, group } = pickedFromGrid;
+
+  const turmaId = targetCell.dataset.turmaId;
+  const day     = Number(targetCell.dataset.dia);
+  const startP  = Number(targetCell.dataset.periodo);
+
+  // tentar mover (permitindo overwrite, ignorando o próprio grupo)
+  if (!canPlaceBlockOverwrite(turmaId, day, startP, lesson.duration, group) || lesson.classId !== turmaId){
+    // feedback e mantém pick
+    targetCell.classList.add('ring-2','ring-red-400');
+    setTimeout(()=>targetCell.classList.remove('ring-2','ring-red-400'), 350);
+    return;
+  }
+
+  // remove antigo, coloca no novo
+  clearPickedHighlight();
+  removeGroupCells(oldCells);
+  placeBlock(turmaId, day, startP, lesson);
+  pickedFromGrid = null;
+}
+
+/* ----------------- Grade ----------------- */
 function criarGrade(){
   const grid = document.getElementById('schedule-grid');
   grid.innerHTML = '';
@@ -187,12 +230,13 @@ function criarGrade(){
         cell.dataset.dia = String(dia);
         cell.dataset.periodo = String(periodo);
 
-        /* ancorar cada período na sua coluna */
+        // ancora cada período na sua coluna (importante para span)
         cell.style.gridColumnStart = String(periodo+1);
         cell.style.gridColumnEnd = 'span 1';
 
         mapCells[turma.id][dia][periodo] = cell;
 
+        // pré-alocações iniciais (exemplo dur=1)
         if (initialAllocations?.[turmaIndex]?.includes(dia*P + periodo)){
           const lesson = {
             id: `init-${turma.id}-${dia}-${periodo}`,
@@ -206,47 +250,69 @@ function criarGrade(){
           cell.title = `${turma.name} - Clique para alocar`;
         }
 
-        /* Clique */
+        // Clique no slot
         cell.addEventListener('click', ()=>{
-          const turmaId = cell.dataset.turmaId;
-          const day = Number(cell.dataset.dia);
-          const startP = Number(cell.dataset.periodo);
+          // 1) se estou com uma aula “pegada” da grade => tentar mover para este slot
+          if (pickedFromGrid){
+            movePickedToCell(cell);
+            return;
+          }
 
-          if (cell.classList.contains('occupied') && cell.dataset.group){
-            if (selectedLessonId){
-              const idxSel = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
-              if (idxSel === -1) return;
-              const sel = unallocatedLessons[idxSel];
-              if (sel.classId !== turmaId) return;
-
-              const { cells: oldCells, lesson: oldLesson, group: oldGroup } = getGroupCells(cell);
-              if (!canPlaceBlockOverwrite(turmaId, day, startP, sel.duration, oldGroup)) return;
-
+          // 2) se tenho um card selecionado => tentar alocar/overwrite a partir do card
+          if (selectedLessonId){
+            const lesson = unallocatedLessons.find(l=>l.id===selectedLessonId);
+            if (!lesson) return;
+            // slot ocupado => overwrite (usa a regra normal)
+            if (cell.classList.contains('occupied')){
+              const { group } = getGroupCells(cell);
+              if (!canPlaceBlockOverwrite(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson.duration, group)
+                  || lesson.classId !== cell.dataset.turmaId){
+                cell.classList.add('ring-2','ring-red-400');
+                setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'), 350);
+                return;
+              }
+              const { cells: oldCells, lesson: oldLesson } = getGroupCells(cell);
               removeGroupCells(oldCells);
-              placeBlock(turmaId, day, startP, sel);
+              placeBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson);
+              // remove card e devolve antigo
+              const idx = unallocatedLessons.findIndex(l=>l.id===lesson.id);
+              if (idx !== -1) unallocatedLessons.splice(idx,1);
               unallocatedLessons.push(oldLesson);
-              unallocatedLessons.splice(idxSel,1);
               selectedLessonId = null;
               renderUnallocated();
               return;
             }
-            const { cells: grpCells, lesson } = getGroupCells(cell);
-            removeGroupCells(grpCells);
-            unallocatedLessons.push(lesson);
+
+            // slot vazio => alocar
+            if (lesson.classId !== cell.dataset.turmaId || !canPlaceBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson.duration)){
+              cell.classList.add('ring-2','ring-red-400');
+              setTimeout(()=>cell.classList.remove('ring-2','ring-red-400'), 350);
+              return;
+            }
+            placeBlock(cell.dataset.turmaId, Number(cell.dataset.dia), Number(cell.dataset.periodo), lesson);
+            const idx = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
+            if (idx !== -1) unallocatedLessons.splice(idx,1);
+            selectedLessonId = null;
             renderUnallocated();
             return;
           }
 
-          if (!selectedLessonId) return;
-          const idx = unallocatedLessons.findIndex(l=>l.id===selectedLessonId);
-          if (idx===-1) return;
-          const lesson = unallocatedLessons[idx];
-          if (lesson.classId !== turmaId || !canPlaceBlock(turmaId, day, startP, lesson.duration)) return;
+          // 3) sem card e clicou em bloco ocupado => “pegar da grade”
+          if (cell.classList.contains('occupied') && cell.dataset.group){
+            const info = getGroupCells(cell);
+            // se clicar de novo no mesmo bloco enquanto já está pickado => cancela
+            if (pickedFromGrid && pickedFromGrid.group === info.group){
+              cancelPick();
+            } else {
+              cancelPick(); // limpa qualquer pick anterior
+              pickFromGrid(cell);
+            }
+            return;
+          }
 
-          placeBlock(turmaId, day, startP, lesson);
-          unallocatedLessons.splice(idx,1);
-          selectedLessonId = null;
-          renderUnallocated();
+          // 4) slot vazio e nada selecionado => feedback leve
+          cell.classList.add('ring-2','ring-blue-400');
+          setTimeout(()=>cell.classList.remove('ring-2','ring-blue-400'), 250);
         });
 
         dayColumn.appendChild(cell);
@@ -255,9 +321,25 @@ function criarGrade(){
     }
     grid.appendChild(turmaRow);
   });
+
+  // clique na área de “Aulas não alocadas” (fundo) descarta a aula pickada para os cards
+  const unallocArea = document.getElementById('unallocated-list');
+  if (unallocArea){
+    unallocArea.addEventListener('click', (e)=>{
+      // Só considera clique no fundo da área, não em um card:
+      if (e.target !== unallocArea) return;
+      if (!pickedFromGrid) return;
+      const { lesson, cells } = pickedFromGrid;
+      clearPickedHighlight();
+      removeGroupCells(cells);
+      unallocatedLessons.push(lesson);
+      pickedFromGrid = null;
+      renderUnallocated();
+    });
+  }
 }
 
-/* --------- Boot --------- */
+/* ----------------- Boot ----------------- */
 function init(){
   renderPeriodsHeader();
   criarGrade();
@@ -265,8 +347,11 @@ function init(){
 }
 init();
 
-/* --------- Consolidação --------- */
+/* ----------------- Consolidação ----------------- */
 function consolidar(){
+  // Se estiver com uma aula pickada, “solta” antes consolidar (mantém onde está)
+  cancelPick();
+
   const allocations = [];
   classes.forEach(t=>{
     for (let d=0; d<meta.days.length; d++){
@@ -294,12 +379,12 @@ function consolidar(){
   window.location.href = 'vizualizar.html';
 }
 
-/* Confirmação antes de consolidar (não altera a lógica da grade) */
+// --- Confirmação antes de consolidar ---
 const btnConsolidar = document.getElementById('btn-consolidar');
 if (btnConsolidar){
   btnConsolidar.addEventListener('click', () => {
     const ok = window.confirm('Você tem certeza que deseja consolidar? Esta ação é irreversível.');
     if (!ok) return;
     consolidar();
-  });
+  }, { once: true });
 }
