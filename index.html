@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Sistema de Agendamento de Turmas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Caminho atualizado -->
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body class="bg-gray-50 p-6">
   <div class="max-w-full mx-auto">
     <div class="bg-white rounded-lg shadow-lg p-6">
@@ -17,8 +19,7 @@
 
       <!-- Botão Consolidar -->
       <div class="mb-4 flex justify-end">
-        <button id="btn-consolidar" 
-                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">
+        <button id="btn-consolidar" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">
           Consolidar horário
         </button>
       </div>
@@ -76,7 +77,7 @@
         </div>
         <div id="unallocated-list" class="flex flex-wrap gap-2"></div>
         <div class="text-xs text-gray-500 mt-3 leading-relaxed">
-          Selecione um cartão e depois clique no <i>início</i> do bloco na grade para alocar (respeita a duração).<br/>
+          Selecione um cartão e depois clique no <i>início</i> do bloco na grade para alocar (respeita a duração).<br />
           Clique em uma célula ocupada para <b>remover ou substituir</b> a aula.
         </div>
       </div>
@@ -84,7 +85,32 @@
   </div>
 
   <!-- Scripts -->
+  <script src="js/ag-adapter.js"></script>
+
+
+
+  <!-- (Opcional) Simular o payload real do AG aqui para teste local.
+     Se já vier do backend, remova este bloco e apenas garanta que window.AG_PAYLOAD exista. -->
+  <script>
+    // window.AG_PAYLOAD = { ... JSON do AG ... };
+  </script>
+
+
+
+  <!-- Seus dados locais (meta/períodos etc.) continuam valendo -->
   <script src="js/data.js"></script>
+
+  <!-- O app.js automaticamente usará o AG_PAYLOAD se existir; senão, usa EDITOR_DATA -->
+  <script>
+    // Override leve para o app.js consumir ED já adaptado
+    (function () {
+      if (window.AG_PAYLOAD && window.AG_ADAPTER && window.EDITOR_DATA) {
+        window.EDITOR_DATA = window.AG_ADAPTER.adaptAGForEditor(window.EDITOR_DATA.meta, window.AG_PAYLOAD);
+      }
+    })();
+  </script>
+
   <script src="js/app.js"></script>
 </body>
+
 </html>

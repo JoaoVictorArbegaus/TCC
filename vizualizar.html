@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Visualização de Horário</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body class="bg-gray-50 p-6">
   <div class="max-w-full mx-auto">
     <div class="bg-white rounded-lg shadow-lg p-6">
@@ -15,7 +17,7 @@
       <h1 class="text-3xl font-bold text-gray-800 text-center">Cronograma Consolidado</h1>
       <h2 id="viz-subtitle" class="text-xl text-gray-700 mb-6 text-center"></h2>
 
-      
+
       <!-- Controles (filtros) -->
       <div class="mb-4 flex gap-3 items-end">
         <div>
@@ -47,7 +49,28 @@
     </div>
   </div>
 
+  <!-- Adaptador do AG -> formatos do editor/viz -->
+  <script src="js/ag-adapter.js"></script>
+
+  <!-- (Opcional) Simular o payload real do AG aqui para teste local.
+     Se já vier do backend, remova este bloco e apenas garanta que window.AG_PAYLOAD exista. -->
+  <script>
+    // window.AG_PAYLOAD = { ... JSON do AG ... };
+  </script>
+
+  <!-- Seus dados locais (meta/períodos) para manter cores/labels de períodos -->
   <script src="js/data.js"></script>
+
+  <!-- Se existir AG_PAYLOAD, já salva no localStorage no formato da visualização -->
+  <script>
+    (function () {
+      if (window.AG_PAYLOAD && window.AG_ADAPTER && window.EDITOR_DATA) {
+        const consolidated = window.AG_ADAPTER.adaptAGForViewer(window.EDITOR_DATA.meta, window.AG_PAYLOAD);
+        localStorage.setItem('consolidatedSchedule', JSON.stringify(consolidated));
+      }
+    })();
+  </script>
   <script src="js/vizualizar.js"></script>
 </body>
+
 </html>
